@@ -38,7 +38,6 @@ var (
 	VERSION = "custom"
 
 	vpn        = flag.Bool("V", false, "Run in VPN mode.")
-	fastOpen   = flag.Bool("fast-open", false, "Enable TCP fast open.")
 	localAddr  = flag.String("localAddr", "127.0.0.1", "local address to listen on.")
 	localPort  = flag.String("localPort", "1984", "local port to listen on.")
 	remoteAddr = flag.String("remoteAddr", "127.0.0.1", "remote address to forward.")
@@ -151,17 +150,7 @@ func generateConfig() (*core.Config, error) {
 			Settings:     serial.ToTypedMessage(transportSettings),
 		}},
 	}
-	if *fastOpen || *fwmark != 0 {
-		socketConfig := &internet.SocketConfig{}
-		if *fastOpen {
-			socketConfig.Tfo = internet.SocketConfig_Enable
-		}
-		if *fwmark != 0 {
-			socketConfig.Mark = int32(*fwmark)
-		}
 
-		streamConfig.SocketSettings = socketConfig
-	}
 	if *tlsEnabled {
 		tlsConfig := tls.Config{ServerName: *host}
 		if *server {
@@ -324,10 +313,6 @@ func startV2Ray() (core.Server, error) {
 			} else {
 				*remotePort = c
 			}
-		}
-
-		if _, b := opts.Get("fastOpen"); b {
-			*fastOpen = true
 		}
 
 		if _, b := opts.Get("__android_vpn"); b {
