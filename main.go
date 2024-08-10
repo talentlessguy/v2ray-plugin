@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"os/user"
 	"runtime"
 	"strconv"
 	"strings"
@@ -23,14 +22,11 @@ import (
 	"github.com/v2fly/v2ray-core/v4/app/dispatcher"
 	"github.com/v2fly/v2ray-core/v4/app/proxyman"
 	"github.com/v2fly/v2ray-core/v4/common/net"
-	"github.com/v2fly/v2ray-core/v4/common/platform/filesystem"
 	"github.com/v2fly/v2ray-core/v4/common/protocol"
 	"github.com/v2fly/v2ray-core/v4/common/serial"
 	"github.com/v2fly/v2ray-core/v4/proxy/dokodemo"
 	"github.com/v2fly/v2ray-core/v4/proxy/freedom"
 	"github.com/v2fly/v2ray-core/v4/transport/internet"
-	"github.com/v2fly/v2ray-core/v4/transport/internet/quic"
-	"github.com/v2fly/v2ray-core/v4/transport/internet/tls"
 	"github.com/v2fly/v2ray-core/v4/transport/internet/websocket"
 )
 
@@ -44,39 +40,12 @@ var (
 	remotePort = flag.String("remotePort", "1080", "remote port to forward.")
 	path       = flag.String("path", "/", "URL path for websocket.")
 	host       = flag.String("host", "cloudfront.com", "Hostname for server.")
-	tlsEnabled = flag.Bool("tls", false, "Enable TLS.")
-	cert       = flag.String("cert", "", "Path to TLS certificate file. Overrides certRaw. Default: ~/.acme.sh/{host}/fullchain.cer")
-	certRaw    = flag.String("certRaw", "", "Raw TLS certificate content. Intended only for Android.")
-	key        = flag.String("key", "", "(server) Path to TLS key file. Default: ~/.acme.sh/{host}/{host}.key")
 	mode       = flag.String("mode", "websocket", "Transport mode: websocket, quic (enforced tls).")
 	mux        = flag.Int("mux", 1, "Concurrent multiplexed connections (websocket client mode only).")
 	server     = flag.Bool("server", false, "Run in server mode")
 	logLevel   = flag.String("loglevel", "", "loglevel for v2ray: debug, info, warning (default), error, none.")
 	version    = flag.Bool("version", false, "Show current version of v2ray-plugin")
-	fwmark     = flag.Int("fwmark", 0, "Set SO_MARK option for outbound sockets.")
 )
-
-func homeDir() string {
-	usr, err := user.Current()
-	if err != nil {
-		logFatal(err)
-		os.Exit(1)
-	}
-	return usr.HomeDir
-}
-
-func readCertificate() ([]byte, error) {
-	if *cert != "" {
-		return filesystem.ReadFile(*cert)
-	}
-	if *certRaw != "" {
-		certHead := "-----BEGIN CERTIFICATE-----"
-		certTail := "-----END CERTIFICATE-----"
-		fixedCert := certHead + "\n" + *certRaw + "\n" + certTail
-		return []byte(fixedCert), nil
-	}
-	panic("thou shalt not reach hear")
-}
 
 func logConfig(logLevel string) *vlog.Config {
 	config := &vlog.Config{
@@ -134,11 +103,6 @@ func generateConfig() (*core.Config, error) {
 		if *mux != 0 {
 			connectionReuse = true
 		}
-	case "quic":
-		transportSettings = &quic.Config{
-			Security: &protocol.SecurityConfig{Type: protocol.SecurityType_NONE},
-		}
-		*tlsEnabled = true
 	default:
 		return nil, newError("unsupported mode:", *mode)
 	}
@@ -149,39 +113,6 @@ func generateConfig() (*core.Config, error) {
 			ProtocolName: *mode,
 			Settings:     serial.ToTypedMessage(transportSettings),
 		}},
-	}
-
-	if *tlsEnabled {
-		tlsConfig := tls.Config{ServerName: *host}
-		if *server {
-			certificate := tls.Certificate{}
-			if *cert == "" && *certRaw == "" {
-				*cert = fmt.Sprintf("%s/.acme.sh/%s/fullchain.cer", homeDir(), *host)
-				logWarn("No TLS cert specified, trying", *cert)
-			}
-			certificate.Certificate, err = readCertificate()
-			if err != nil {
-				return nil, newError("failed to read cert").Base(err)
-			}
-			if *key == "" {
-				*key = fmt.Sprintf("%[1]s/.acme.sh/%[2]s/%[2]s.key", homeDir(), *host)
-				logWarn("No TLS key specified, trying", *key)
-			}
-			certificate.Key, err = filesystem.ReadFile(*key)
-			if err != nil {
-				return nil, newError("failed to read key file").Base(err)
-			}
-			tlsConfig.Certificate = []*tls.Certificate{&certificate}
-		} else if *cert != "" || *certRaw != "" {
-			certificate := tls.Certificate{Usage: tls.Certificate_AUTHORITY_VERIFY}
-			certificate.Certificate, err = readCertificate()
-			if err != nil {
-				return nil, newError("failed to read cert").Base(err)
-			}
-			tlsConfig.Certificate = []*tls.Certificate{&certificate}
-		}
-		streamConfig.SecurityType = serial.GetMessageType(&tlsConfig)
-		streamConfig.SecuritySettings = []*serial.TypedMessage{serial.ToTypedMessage(&tlsConfig)}
 	}
 
 	apps := []*serial.TypedMessage{
@@ -262,24 +193,14 @@ func startV2Ray() (core.Server, error) {
 				logWarn("failed to parse mux, use default value")
 			}
 		}
-		if _, b := opts.Get("tls"); b {
-			*tlsEnabled = true
-		}
+
 		if c, b := opts.Get("host"); b {
 			*host = c
 		}
 		if c, b := opts.Get("path"); b {
 			*path = c
 		}
-		if c, b := opts.Get("cert"); b {
-			*cert = c
-		}
-		if c, b := opts.Get("certRaw"); b {
-			*certRaw = c
-		}
-		if c, b := opts.Get("key"); b {
-			*key = c
-		}
+
 		if c, b := opts.Get("loglevel"); b {
 			*logLevel = c
 		}
@@ -317,14 +238,6 @@ func startV2Ray() (core.Server, error) {
 
 		if _, b := opts.Get("__android_vpn"); b {
 			*vpn = true
-		}
-
-		if c, b := opts.Get("fwmark"); b {
-			if i, err := strconv.Atoi(c); err == nil {
-				*fwmark = i
-			} else {
-				logWarn("failed to parse fwmark, use default value")
-			}
 		}
 
 		if *vpn {
