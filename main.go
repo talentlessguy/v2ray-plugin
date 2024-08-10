@@ -34,7 +34,6 @@ import (
 var (
 	VERSION = "custom"
 
-	vpn        = flag.Bool("V", false, "Run in VPN mode.")
 	localAddr  = flag.String("localAddr", "127.0.0.1", "local address to listen on.")
 	localPort  = flag.String("localPort", "1984", "local port to listen on.")
 	remoteAddr = flag.String("remoteAddr", "127.0.0.1", "remote address to forward.")
@@ -236,13 +235,6 @@ func startV2Ray() (core.Server, error) {
 			}
 		}
 
-		if _, b := opts.Get("__android_vpn"); b {
-			*vpn = true
-		}
-
-		if *vpn {
-			registerControlFunc()
-		}
 	}
 
 	config, err := generateConfig()
