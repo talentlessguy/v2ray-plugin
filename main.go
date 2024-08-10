@@ -10,24 +10,25 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/golang/protobuf/proto"
+	_ "github.com/v2fly/v2ray-core/v5/app/proxyman/inbound"
+	_ "github.com/v2fly/v2ray-core/v5/app/proxyman/outbound"
+	"google.golang.org/protobuf/types/known/anypb"
 
-	_ "github.com/v2fly/v2ray-core/v4/app/proxyman/inbound"
-	_ "github.com/v2fly/v2ray-core/v4/app/proxyman/outbound"
+	proto "github.com/golang/protobuf/proto"
 
-	core "github.com/v2fly/v2ray-core/v4"
-	vlog "github.com/v2fly/v2ray-core/v4/app/log"
-	clog "github.com/v2fly/v2ray-core/v4/common/log"
+	core "github.com/v2fly/v2ray-core/v5"
+	vlog "github.com/v2fly/v2ray-core/v5/app/log"
+	clog "github.com/v2fly/v2ray-core/v5/common/log"
 
-	"github.com/v2fly/v2ray-core/v4/app/dispatcher"
-	"github.com/v2fly/v2ray-core/v4/app/proxyman"
-	"github.com/v2fly/v2ray-core/v4/common/net"
-	"github.com/v2fly/v2ray-core/v4/common/protocol"
-	"github.com/v2fly/v2ray-core/v4/common/serial"
-	"github.com/v2fly/v2ray-core/v4/proxy/dokodemo"
-	"github.com/v2fly/v2ray-core/v4/proxy/freedom"
-	"github.com/v2fly/v2ray-core/v4/transport/internet"
-	"github.com/v2fly/v2ray-core/v4/transport/internet/websocket"
+	"github.com/v2fly/v2ray-core/v5/app/dispatcher"
+	"github.com/v2fly/v2ray-core/v5/app/proxyman"
+	"github.com/v2fly/v2ray-core/v5/common/net"
+	"github.com/v2fly/v2ray-core/v5/common/protocol"
+	"github.com/v2fly/v2ray-core/v5/common/serial"
+	"github.com/v2fly/v2ray-core/v5/proxy/dokodemo"
+	"github.com/v2fly/v2ray-core/v5/proxy/freedom"
+	"github.com/v2fly/v2ray-core/v5/transport/internet"
+	"github.com/v2fly/v2ray-core/v5/transport/internet/websocket"
 )
 
 var (
@@ -49,21 +50,20 @@ var (
 
 func logConfig(logLevel string) *vlog.Config {
 	config := &vlog.Config{
-		ErrorLogLevel: clog.Severity_Warning,
-		ErrorLogType:  vlog.LogType_Console,
-		AccessLogType: vlog.LogType_Console,
+		Error:  &vlog.LogSpecification{Level: clog.Severity_Warning, Type: vlog.LogType_Console},
+		Access: &vlog.LogSpecification{Type: vlog.LogType_Console},
 	}
 	level := strings.ToLower(logLevel)
 	switch level {
 	case "debug":
-		config.ErrorLogLevel = clog.Severity_Debug
+		config.Error.Level = clog.Severity_Debug
 	case "info":
-		config.ErrorLogLevel = clog.Severity_Info
+		config.Error.Level = clog.Severity_Info
 	case "error":
-		config.ErrorLogLevel = clog.Severity_Error
+		config.Error.Level = clog.Severity_Error
 	case "none":
-		config.ErrorLogType = vlog.LogType_None
-		config.AccessLogType = vlog.LogType_None
+		config.Error.Type = vlog.LogType_None
+		config.Access.Type = vlog.LogType_None
 	}
 	return config
 }
@@ -115,7 +115,7 @@ func generateConfig() (*core.Config, error) {
 		}},
 	}
 
-	apps := []*serial.TypedMessage{
+	apps := []*anypb.Any{
 		serial.ToTypedMessage(&dispatcher.Config{}),
 		serial.ToTypedMessage(&proxyman.InboundConfig{}),
 		serial.ToTypedMessage(&proxyman.OutboundConfig{}),
