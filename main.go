@@ -43,27 +43,15 @@ var (
 	mode       = flag.String("mode", "websocket", "Transport mode: websocket, quic (enforced tls).")
 	mux        = flag.Int("mux", 1, "Concurrent multiplexed connections (websocket client mode only).")
 	server     = flag.Bool("server", false, "Run in server mode")
-	logLevel   = flag.String("loglevel", "", "loglevel for v2ray: debug, info, warning (default), error, none.")
 	version    = flag.Bool("version", false, "Show current version of v2ray-plugin")
 )
 
-func logConfig(logLevel string) *vlog.Config {
+func logConfig() *vlog.Config {
 	config := &vlog.Config{
-		Error:  &vlog.LogSpecification{Level: clog.Severity_Warning, Type: vlog.LogType_Console},
-		Access: &vlog.LogSpecification{Type: vlog.LogType_Console},
+		Error:  &vlog.LogSpecification{Level: clog.Severity_Error, Type: vlog.LogType_Console},
+		Access: &vlog.LogSpecification{Type: vlog.LogType_None},
 	}
-	level := strings.ToLower(logLevel)
-	switch level {
-	case "debug":
-		config.Error.Level = clog.Severity_Debug
-	case "info":
-		config.Error.Level = clog.Severity_Info
-	case "error":
-		config.Error.Level = clog.Severity_Error
-	case "none":
-		config.Error.Type = vlog.LogType_None
-		config.Access.Type = vlog.LogType_None
-	}
+	config.Error.Level = clog.Severity_Error
 	return config
 }
 
@@ -118,7 +106,7 @@ func generateConfig() (*core.Config, error) {
 		serial.ToTypedMessage(&dispatcher.Config{}),
 		serial.ToTypedMessage(&proxyman.InboundConfig{}),
 		serial.ToTypedMessage(&proxyman.OutboundConfig{}),
-		serial.ToTypedMessage(logConfig(*logLevel)),
+		serial.ToTypedMessage(logConfig()),
 	}
 
 	if *server {
@@ -200,9 +188,6 @@ func startV2Ray() (core.Server, error) {
 			*path = c
 		}
 
-		if c, b := opts.Get("loglevel"); b {
-			*logLevel = c
-		}
 		if _, b := opts.Get("server"); b {
 			*server = true
 		}
