@@ -42,7 +42,6 @@ var (
 	host       = flag.String("host", "cloudfront.com", "Hostname for server.")
 	mode       = flag.String("mode", "websocket", "Transport mode: websocket, quic (enforced tls).")
 	mux        = flag.Int("mux", 1, "Concurrent multiplexed connections (websocket client mode only).")
-	server     = flag.Bool("server", false, "Run in server mode")
 	version    = flag.Bool("version", false, "Show current version of v2ray-plugin")
 )
 
@@ -108,60 +107,37 @@ func generateConfig() (*core.Config, error) {
 		serial.ToTypedMessage(logConfig()),
 	}
 
-	if *server {
-		proxyAddress := net.LocalHostIP
-		if connectionReuse {
-			// This address is required when mux is used on client.
-			// dokodemo is not aware of mux connections by itself.
-			proxyAddress = net.ParseAddress("v1.mux.cool")
-		}
-		localAddrs := parseLocalAddr(*localAddr)
-		inbounds := make([]*core.InboundHandlerConfig, len(localAddrs))
-
-		for i := 0; i < len(localAddrs); i++ {
-			inbounds[i] = &core.InboundHandlerConfig{
-				ReceiverSettings: serial.ToTypedMessage(&proxyman.ReceiverConfig{
-					PortRange:      net.SinglePortRange(lport),
-					Listen:         net.NewIPOrDomain(net.ParseAddress(localAddrs[i])),
-					StreamSettings: &streamConfig,
-				}),
-				ProxySettings: serial.ToTypedMessage(&dokodemo.Config{
-					Address:  net.NewIPOrDomain(proxyAddress),
-					Networks: []net.Network{net.Network_TCP},
-				}),
-			}
-		}
-
-		return &core.Config{
-			Inbound: inbounds,
-			Outbound: []*core.OutboundHandlerConfig{{
-				ProxySettings: outboundProxy,
-			}},
-			App: apps,
-		}, nil
-	} else {
-		senderConfig := proxyman.SenderConfig{StreamSettings: &streamConfig}
-		if connectionReuse {
-			senderConfig.MultiplexSettings = &proxyman.MultiplexingConfig{Enabled: true, Concurrency: uint32(*mux)}
-		}
-		return &core.Config{
-			Inbound: []*core.InboundHandlerConfig{{
-				ReceiverSettings: serial.ToTypedMessage(&proxyman.ReceiverConfig{
-					PortRange: net.SinglePortRange(lport),
-					Listen:    net.NewIPOrDomain(net.ParseAddress(*localAddr)),
-				}),
-				ProxySettings: serial.ToTypedMessage(&dokodemo.Config{
-					Address:  net.NewIPOrDomain(net.LocalHostIP),
-					Networks: []net.Network{net.Network_TCP},
-				}),
-			}},
-			Outbound: []*core.OutboundHandlerConfig{{
-				SenderSettings: serial.ToTypedMessage(&senderConfig),
-				ProxySettings:  outboundProxy,
-			}},
-			App: apps,
-		}, nil
+	proxyAddress := net.LocalHostIP
+	if connectionReuse {
+		// This address is required when mux is used on client.
+		// dokodemo is not aware of mux connections by itself.
+		proxyAddress = net.ParseAddress("v1.mux.cool")
 	}
+	localAddrs := parseLocalAddr(*localAddr)
+	inbounds := make([]*core.InboundHandlerConfig, len(localAddrs))
+
+	for i := 0; i < len(localAddrs); i++ {
+		inbounds[i] = &core.InboundHandlerConfig{
+			ReceiverSettings: serial.ToTypedMessage(&proxyman.ReceiverConfig{
+				PortRange:      net.SinglePortRange(lport),
+				Listen:         net.NewIPOrDomain(net.ParseAddress(localAddrs[i])),
+				StreamSettings: &streamConfig,
+			}),
+			ProxySettings: serial.ToTypedMessage(&dokodemo.Config{
+				Address:  net.NewIPOrDomain(proxyAddress),
+				Networks: []net.Network{net.Network_TCP},
+			}),
+		}
+	}
+
+	return &core.Config{
+		Inbound: inbounds,
+		Outbound: []*core.OutboundHandlerConfig{{
+			ProxySettings: outboundProxy,
+		}},
+		App: apps,
+	}, nil
+
 }
 
 func startV2Ray() (core.Server, error) {
@@ -187,36 +163,17 @@ func startV2Ray() (core.Server, error) {
 			*path = c
 		}
 
-		if _, b := opts.Get("server"); b {
-			*server = true
-		}
 		if c, b := opts.Get("localAddr"); b {
-			if *server {
-				*remoteAddr = c
-			} else {
-				*localAddr = c
-			}
+			*remoteAddr = c
 		}
 		if c, b := opts.Get("localPort"); b {
-			if *server {
-				*remotePort = c
-			} else {
-				*localPort = c
-			}
+			*remotePort = c
 		}
 		if c, b := opts.Get("remoteAddr"); b {
-			if *server {
-				*localAddr = c
-			} else {
-				*remoteAddr = c
-			}
+			*localAddr = c
 		}
 		if c, b := opts.Get("remotePort"); b {
-			if *server {
-				*localPort = c
-			} else {
-				*remotePort = c
-			}
+			*localPort = c
 		}
 
 	}
