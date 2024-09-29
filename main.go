@@ -233,17 +233,15 @@ func startV2Ray() (core.Server, error) {
 	return instance, nil
 }
 
-func printCoreVersion() {
-	version := core.VersionStatement()
-	for _, s := range version {
-		logInfo(s)
-	}
-}
-
 func printVersion() {
 	fmt.Println("v2ray-plugin", VERSION)
 	fmt.Println("Go version", runtime.Version())
 	fmt.Println("Yet another SIP003 plugin for shadowsocks")
+
+	version := core.VersionStatement()
+	for _, s := range version {
+		logInfo(s)
+	}
 }
 
 func main() {
@@ -255,8 +253,6 @@ func main() {
 	}
 
 	logInit()
-
-	printCoreVersion()
 
 	server, err := startV2Ray()
 	if err != nil {
