@@ -179,6 +179,7 @@ func startV2Ray() (core.Server, error) {
 	}
 
 	config, err := generateConfig()
+	fmt.Println(config)
 	if err != nil {
 		return nil, newError("failed to parse config").Base(err)
 	}
